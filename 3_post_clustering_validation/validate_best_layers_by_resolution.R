@@ -10,7 +10,6 @@ library(Seurat)
 library(SeuratWrappers)
 library(ggplot2)
 library(reshape2)
-# library(gridExtra)
 
 generate_layer_corr_table <- function(top_markers, maynard, maynard_t_stats) {
     corr_table <- as.data.frame(matrix(ncol=length(unique(top_markers$cluster)),
@@ -25,13 +24,8 @@ generate_layer_corr_table <- function(top_markers, maynard, maynard_t_stats) {
 
     for (i in unique(top_markers$cluster)) {
         sig_genes_layer <- subset(top_markers, cluster==i)
-        # sig_genes_layer$ranked_LFC <- rank(sig_genes_layer$avg_log2FC)
         for(j in maynard_t_stats) {
-            # maynard_ranked_col <- paste("ranked_", j, sep='')
-            # merged_mat <- merge(sig_genes_layer, maynard[, c(maynard_ranked_col, "gene")], by="gene")
             merged_mat <- merge(sig_genes_layer, maynard[, c(j, "gene")], by="gene")
-            # corr_table[j,i] <- cor(merged_mat$ranked_LFC, merged_mat[[maynard_ranked_col]])
-            # res <- cor.test(merged_mat$ranked_LFC, merged_mat[[maynard_ranked_col]])
             # res <- cor.test(merged_mat$avg_log2FC, merged_mat[[j]], method="spearman")
             res <- cor.test(merged_mat$avg_log2FC, merged_mat[[j]], method="pearson")
             corr_table[j,i] <- res$estimate
@@ -65,7 +59,7 @@ permute_k_subset <- function(set, k) {
 validate_by_resolution <- function(seurat_obj, maynard_markers, output_name, small_cluster_thresh = 100) {
 
     # validation against Maynard for each Leiden cluster resolution
-    # maynard <- read.csv("/data/neurogen/jy1008/scRNAseq_integration/maynard_layer_markers.csv", sep=',', header=TRUE)
+    # maynard <- read.csv("maynard_layer_markers.csv", sep=',', header=TRUE)
 
     maynard_t_stats <- c("t_stat_WM", "t_stat_Layer1", "t_stat_Layer2", "t_stat_Layer3",
                          "t_stat_Layer4", "t_stat_Layer5", "t_stat_Layer6")
@@ -146,34 +140,13 @@ validate_by_resolution <- function(seurat_obj, maynard_markers, output_name, sma
                                               layer_sum_squared_distance = layer_dist_sum,
                                               num_large_clusters = num_clusters))
     }
-    # write.table(cluster_res_table, "cluster_res_table_all_conts_07012022.csv", sep=',')
     write.table(cluster_res_table, sprintf("cluster_res_table_%s.csv", output_name), sep = ',', row.names = FALSE)
 }
 
+comb_seurat <- readRDS("comb_seurat_diet_out.rds")
+maynard <- read.csv("maynard_layer_markers.csv", sep=',', header=TRUE)
 
-
-
-
-
-
-
-
-
-# comb_seurat_cont <- readRDS("/data/neurogen/jy1008/scRNAseq_integration/spatial_clustering_pipeline_06252022/all_controls_5covars0p4_seed101_05082022/comb_seurat_diet_out.rds")
-# save some memory
-# comb_seurat_cont <- DietSeurat(comb_seurat_cont)
-
-# comb_seurat <- readRDS("/data/neurogen/jy1008/scRNAseq_integration/spatial_clustering_pipeline_06252022/all_data_5covars0p4_seed101_06252022/comb_seurat_diet_out_no_reducs.rds")
-# panda server
-comb_seurat <- readRDS("/mnt/data0/projects/ASAP/ST/clustering_pipeline/all_data_5covar0p4_V4_seed101_10272023/comb_seurat_diet_out.rds")
-
-# maynard <- read.csv("/data/neurogen/jy1008/scRNAseq_integration/maynard_layer_markers.csv", sep=',', header=TRUE)
-# panda server
-maynard <- read.csv("/mnt/data0/projects/ASAP/ST/data/Maynard_Spatial_2020/maynard_layer_markers.csv", sep=',', header=TRUE)
-
-# out_name <- "all_conts_12122022"
-# out_name <- "all_data_12122022"
-out_name <- "all_data_V4_10272023"
+out_name <- ""
 
 set.seed(101)
 validate_by_resolution(comb_seurat, maynard_markers = maynard,
@@ -184,63 +157,11 @@ validate_by_resolution(comb_seurat, maynard_markers = maynard,
 
 
 
-
-# ###
-# # NOTE: TEMPORARY
-# # Recalculate the cluster distances as sum of squared distances
-# ###
-# # -----------------------------------------------------------------------------
-# seurat_obj <- comb_seurat_cont
-# small_cluster_thresh <- 100
-# for (i in 1:nrow(cluster_res_table)) {
-#     clust_col <- cluster_res_table[i, "res"]
-#     print(clust_col)
-#
-#     seurat_obj@meta.data[, "temp_filt_cluster"] <- "Noise"
-#     for (val in unique(seurat_obj@meta.data[, clust_col])) {
-#         val_count <- sum(seurat_obj@meta.data[, clust_col] == val)
-#         if (val_count > small_cluster_thresh) {
-#             seurat_obj@meta.data[seurat_obj@meta.data[, clust_col] == val,
-#                                        "temp_filt_cluster"] <- val
-#         }
-#     }
-#     # skip if fewer than 5 clusters
-#     num_clusters <- length(unique(seurat_obj@meta.data[, "temp_filt_cluster"]))
-#     if ( num_clusters < 5 ) {
-#         print("less than 5 clusters produced")
-#         continue
-#     }
-#     best_clust_ord <- unlist(strsplit(cluster_res_table[i, "best_cluster_order"], ','))
-#     layer_dist_sum <- 0
-#     for ( layer_clust in best_clust_ord ) {
-#         expr_mat <- GetAssayData(seurat_obj, assay = "Spatial", slot = "data")[
-#                                         VariableFeatures(seurat_obj),
-#                                         seurat_obj@meta.data[, "temp_filt_cluster"] == layer_clust]
-#         expr_mat <- sweep(expr_mat, 1, rowMeans(expr_mat), "-")
-#         print(expr_mat[1:5,1:5])
-#         layer_dist_sum <- layer_dist_sum + sum(colSums(expr_mat^2))
-#     }
-#     print(layer_dist_sum)
-#     cluster_res_table[i, "layer_sum_squared_distance"] <- layer_dist_sum
-# }
-# cluster_res_table$layer_distance_sum <- NULL
-# cluster_res_table <- cluster_res_table[, c("res", "best_cluster_order",
-#                         "best_maynard_corr_sum", "layer_sum_squared_distance",
-#                         "num_large_clusters")]
-# # -----------------------------------------------------------------------------
-
-# cluster_res_table <- read.csv("cluster_res_table_all_conts_07012022.csv")
-# cluster_res_table <- read.csv("cluster_res_table_all_conts_12122022.csv")
-# cluster_res_table <- read.csv("cluster_res_table_all_data_12122022.csv")
-# panda server
 cluster_res_table <- read.csv(sprintf("cluster_res_table_%s.csv", out_name))
 cluster_res_table$cluster_resolution <- as.numeric(gsub("Spatial_snn_res\\.", "", cluster_res_table$res))
 
 
 # https://waterdata.usgs.gov/blog/beyond-basic-plotting/
-# pdf("cluster_res_validate_plot_all_conts_12122022.pdf")
-# pdf("cluster_res_validate_plot_all_data_12122022.pdf")
-# panda server
 pdf(sprintf("cluster_res_validate_plot_all_data_%s.pdf", out_name))
 temp <- melt(cluster_res_table, measure.vars = c("best_maynard_corr_sum", "layer_sum_squared_distance", "num_large_clusters"))
 pt1 <- ggplot(temp, aes(x = cluster_resolution, y = value)) +
