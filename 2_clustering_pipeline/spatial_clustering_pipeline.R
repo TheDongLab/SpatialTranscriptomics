@@ -1,3 +1,5 @@
+# Main clustering pipeline: GLM-PCA, Harmony, Leiden
+
 library(Seurat)
 library(reticulate)
 use_condaenv("r_leidenalg", required=T)
@@ -104,7 +106,6 @@ cluster_pipeline <- function(comb_seurat, job_name,
     pass_genes <- filter_variablefeatures(comb_seurat, gene_list,
                                 nzero_spot_thresh=20,
                                 frac_sample_thresh=0.3, bin_size=50)
-    # almost no intersection here?
     # if (remove_mito_ribo) {
     #     mito_genes <- rownames(comb_seurat)[grep("^MT-",rownames(comb_seurat))]
     #     ribo_genes <- rownames(comb_seurat)[grep("^RP[SL]",rownames(comb_seurat))]
@@ -124,13 +125,8 @@ cluster_pipeline <- function(comb_seurat, job_name,
     if(length(dup_spots) > 0) {
         comb_seurat <- comb_seurat[, -dup_spots]
     }
-    
-    # To save memory, remove all genes which are not in VariableFeatures
-    # comb_seurat <- subset(comb_seurat, features = VariableFeatures(comb_seurat))
-    # gc(verbose = TRUE)
 
     # comb_seurat <- RunPCA(comb_seurat, pc.genes = comb_seurat@var.genes, npcs = 30)
-    # eventually, you should switch over, but for now, confirm PCA still works
     set.seed(random_seed)
     print("Running GLMPCA")
     comb_seurat <- RunGLMPCA(comb_seurat,
