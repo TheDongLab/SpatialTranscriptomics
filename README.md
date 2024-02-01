@@ -38,4 +38,4 @@ Code applied to Visium 10X spatial transcriptomic data in the Middle Temporal Gy
 
 
 ## Maintenance and Contribution
-This code is developed and maintained by Jie Yuan and Xianjun Dong. Please email jyuan15(AT)bwh.harvard,edu OR xdong(AT)bwh.harvard.edu for questions and comments.
+This code is developed and maintained by Jie Yuan and Xianjun Dong. Please email jyuan15(AT)bwh.harvard.edu OR xdong(AT)bwh.harvard.edu for questions and comments.
