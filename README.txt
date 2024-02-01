@@ -21,4 +21,4 @@ Analysis steps are split into numbered folders.
 - validate_new_layer4.R: Layer 4 is extracted by sub-clustering Layer 5 and extracting one of its sub-clusters. This reruns the validation with the new Layer 4 annotation.
 
 4_pseudobulk_DE
-- pseudobulk_DE_DESeq2.R: Performs pseudobulk DE analysis using DESeq2 on each cortical layer separately.
+- pseudobulk_DE_DESeq2.R: Performs pseudobulk DE analysis using DESeq2 on each cortical layer independently. Different types of regression variables are demonstrated, such as quantitative variables, factors, and ordered factors.
