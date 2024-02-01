@@ -1,6 +1,7 @@
+# Helper script to create a merged Seurat object of all samples.
+
 library(Seurat)
 library(data.table)
-# library(ape)
 library(reshape2)
 library(dplyr)
 library(ggplot2)
@@ -10,13 +11,12 @@ library(testit)
 set.seed(101)
 
 # initial spatial data samples file
-input_file_list <- "/data/neurogen/jy1008/scRNAseq_integration/all_data_QC_06252022/st_input_files_postqc_postfilter_V4_10272023.csv"
-clinical_features_list <- "/data/neurogen/jy1008/scRNAseq_integration/all_data_QC_06252022/all_samples_clinical_data_11062022.csv"
-output_data_file <- "/data/neurogen/jy1008/scRNAseq_integration/all_data_QC_06252022/st_input_files_postqc_postfilter_plusclinical_V4_10272023.csv"
-output_postqc_seurat_dir <- "/data/neurogen/jy1008/scRNAseq_integration/all_data_QC_06252022/output_postqc_seurat_objs_V4_10272023"
-output_seurat_name <- "postqc_V4_10272023"
+input_file_list <- ""
+clinical_features_list <- ""
+output_data_file <- "st_files_postqc.csv"
+output_postqc_seurat_dir <- "output_postqc_seurat_objs"
+output_seurat_name <- "postqc"
 
-# create the output table if it doesn't already exist
 st_input_files <- read.csv(input_file_list, comment.char = '#')
 # remove QC-filtered samples according to dedicated column, then remove QC columns
 st_input_files <- st_input_files[st_input_files$qc_final == "keep", ]
@@ -61,44 +61,9 @@ temp <- merge(x=st_input_files, y=clinical_data, by="sample_name", all.x=TRUE)
 assert(nrow(temp) == nrow(st_input_files))
 st_input_files <- temp
 
-table(st_input_files$diagnosis, useNA="always")
-# Control    ILBD    Case    <NA>
-#      32      30      34       0
-
-table(st_input_files[, c("nctx_temporal", "brain_stem_sn")], useNA="always")
-#              brain_stem_sn
-# nctx_temporal  0  1  2  3  4 <NA>
-#          0    45  7  2  3  1    0
-#          1     2  1  9  6  4    0
-#          2     0  0  0  4  2    0
-#          3     0  0  0  0  8    0
-#          4     0  0  0  0  1    0
-#          <NA>  1  0  0  0  0    0
-
-table(st_input_files[, c("nctx_temporal", "diagnosis")], useNA="always")
-#              diagnosis
-# nctx_temporal Control ILBD Case <NA>
-#          0         31   24    3    0
-#          1          0    5   17    0
-#          2          0    1    5    0
-#          3          0    0    8    0
-#          4          0    0    1    0
-#          <NA>       1    0    0    0
-
-table(st_input_files[, c("brain_stem_sn", "diagnosis")], useNA="always")
-#              diagnosis
-# brain_stem_sn Control ILBD Case <NA>
-#          0         32   16    0    0
-#          1          0    7    1    0
-#          2          0    3    8    0
-#          3          0    4    9    0
-#          4          0    0   16    0
-#          <NA>       0    0    0    0
-
 write.table(st_input_files, file=output_data_file, sep='\t', row.names=TRUE)
 
 
-# data.list <- list()
 ii <- 1
 for (i in rownames(st_input_files)) {
    row_vals = st_input_files[i, ]
@@ -123,17 +88,15 @@ for (i in rownames(st_input_files)) {
    st_data@meta.data["nctx_temporal"] <- row_vals$nctx_temporal
    st_data@meta.data["brain_stem_sn"] <- row_vals$brain_stem_sn
 
-   # data.list[[ii]] = st_data
    ii <- ii + 1
    
    saveRDS(st_data, file.path(output_postqc_seurat_dir, paste0(row_vals$sample_name, "_", output_seurat_name, ".rds")))
 }
 
-# on panda server
 data.list <- list()
 sample.list <- c()
 ii <- 1
-files <- list.files(path="/mnt/data0/projects/ASAP/ST/data/MTG_visium/output_postqc_seurat_objs_V4_10272023", pattern="*.rds", full.names=TRUE, recursive=FALSE)
+files <- list.files(path="/postqc/seurat/obj/dir", pattern="*.rds", full.names=TRUE, recursive=FALSE)
 for(st_file in files) {
     st_data <- readRDS(st_file)
     data.list[[ii]] = st_data
@@ -164,4 +127,4 @@ assert(is.numeric(combined@meta.data$last_mmse_test_score))
 assert(is.numeric(combined@meta.data$motor_updrs_score))
 assert(is.numeric(combined@meta.data$nctx_temporal))
 assert(is.numeric(combined@meta.data$brain_stem_sn))
-saveRDS(combined, "/mnt/data0/projects/ASAP/ST/data/MTG_visium/comb_seurat_V4_postqc_10272023.rds")
+saveRDS(combined, "comb_seurat_postqc.rds")

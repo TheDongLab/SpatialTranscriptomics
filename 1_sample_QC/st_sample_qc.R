@@ -1,3 +1,7 @@
+# Sample QC for single-cell/spatial transcriptomic data. Samples are aggregated, clustered, and visualized, and cluster outliers are likely targets for QC filtering.
+# Originally adapted from code by Xianjun Dong
+# https://github.com/sterding/BRAINcode/blob/7b4c5e816ff1cf9af86041326b71cf3f3e2e4bf6/modules/_normQC.R
+
 library(Seurat)
 library(data.table)
 library(ape)
@@ -6,6 +10,7 @@ library(dplyr)
 library(ggplot2)
 library(stringr)
 
+# For an input Seurat object pertaining to one spatial sample, get a rough estimate of sample quality by performing an initial clustering run, and estimate the spatial "cohesiveness" of the clusters based on neighboring labels. For cortex samples, we generally expect clusters to pertain to cortical layers.
 spatial_score <- function(seurat_obj) {
     # cluster just this seurat obj first
     seurat_obj <- NormalizeData(seurat_obj,
@@ -55,7 +60,7 @@ spatial_score <- function(seurat_obj) {
                 neighbor_clusts <- as.character(twoDmat[neighbor_idxs])
                 
                 for(nbr in neighbor_clusts[!is.na(neighbor_clusts)]) {
-                    # note that you are double-counting each pair, but this should cancel out when taking a ratio of good/(good+bad) neighbors
+                    # each pair is double counted but should cancel out when taking a ratio of good/(good+bad) neighbors
                     if( nbr == twoDmat[i,j] ) {
                         good_adjs <- c(good_adjs, sprintf("%s %s", twoDmat[i,j], nbr))
                     } else {
@@ -72,27 +77,26 @@ spatial_score <- function(seurat_obj) {
 set.seed(101)
 
 # initial spatial data samples file
-input_file_list <- "/data/neurogen/jy1008/scRNAseq_integration/all_data_QC_06252022/st_mtg_input_files_list_V4_10252023.csv"
+# input file is a csv with directory paths for each sample, with the following columns:
+# sample_name,raw_dir,dir,diagnosis,fold_removed,batch,PMI,RIN,sex,expired_age,num_spots_under_tissue,median_genes_per_spot,notes
+input_file_list <- ""
 
 useLogNorm <- TRUE
 if(useLogNorm) {
-    output_data_file <- "sample_qc_slot_lognorm_V4_10272023.xls"
-    output_image_file <- "sample_qc_slot_lognorm_V4_output_10272023.pdf"
-    output_st_sample_file <- "st_input_files_postqc_V4_10272023.csv"
-    output_spatial_file <- "sample_qc_slot_lognorm_V4_singleclust_10272023.pdf"
+    output_data_file <- "sample_qc_slot_lognorm.xls"
+    output_image_file <- "sample_qc_slot_lognorm_output.pdf"
+    output_st_sample_file <- "st_input_files_postqc.csv"
+    output_spatial_file <- "sample_qc_slot_lognorm_singleclust.pdf"
 } else {
-    output_data_file <- "sample_qc_slot_counts_V4_10272023.xls"
-    output_image_file <- "sample_qc_slot_counts_V4_output_10272023.pdf"
-    output_st_sample_file <- "st_input_files_postqc_V4_10272023.csv"
-    output_spatial_file <- "sample_qc_slot_counts_V4_singleclust_10272023.pdf"
+    output_data_file <- "sample_qc_slot_counts.xls"
+    output_image_file <- "sample_qc_slot_counts_output.pdf"
+    output_st_sample_file <- "st_input_files_postqc.csv"
+    output_spatial_file <- "sample_qc_slot_counts_singleclust.pdf"
 }
 
 
-# create the output table if it doesn't already exist
 st_input_files <- read.csv(input_file_list, comment.char = '#')
-# if (!file.exists(output_data_file)) {
 
-# data.list <- list()
 data.combined <- NULL
 ii <- 1
 entropies <- c()
@@ -127,7 +131,6 @@ for (i in rownames(st_input_files)) {
    st_pt <- SpatialDimPlot(temp_res$seurat_obj, group.by="kmeans_cluster") + ggtitle(paste(row_vals$sample_name, row_vals$diagnosis, format(round(temp_res$entropy, 4), nsmall = 4), format(round(temp_res$neighbor_score, 4), nsmall = 4)))
    print(st_pt)
 
-   # df <- as.data.frame(agg_counts@assays$Spatial@counts)
    df <- as.data.frame(agg_counts$Spatial)
    colnames(df) <- row_vals$sample_name
    if (is.null(data.combined)) {
@@ -138,27 +141,13 @@ for (i in rownames(st_input_files)) {
        rownames(data.combined) <- data.combined$Row.names
        data.combined$Row.names <- NULL
    }
-   # data.list[[ii]] = st_data
    ii <- ii + 1
 }
 dev.off()
 st_input_files$entropy <- entropies
 st_input_files$neighbor_score <- neighbor_scores
 
-# combined <- merge(data.list[[1]], y = data.list[2:length(data.list)])
-# combined$batch <- as.factor(combined$batch)
-# combined$sex <- as.factor(combined$sex)
-# combined@meta.data$expired_age <- droplevels(cut(combined@meta.data$expired_age, seq(0,130,by=5)))
-# combined$diagnosis <- as.factor(combined$diagnosis)
-# agg_counts <- AggregateExpression(combined, group.by='orig.ident', slot='counts', return.seurat=TRUE)
-# write.table(agg_counts@assays$Spatial@counts, file=output_data_file, sep='\t', row.names=TRUE)
 write.table(data.combined, file=output_data_file, sep='\t', row.names=TRUE)
-
-# }
-# st_input_files$batch <- as.factor(st_input_files$batch)
-# st_input_files$sex <- as.factor(st_input_files$sex)
-# st_input_files$expired_age <- droplevels(cut(st_input_files$expired_age, seq(0,130,by=5)))
-# st_input_files$diagnosis <- as.factor(st_input_files$diagnosis)
 
 fpkm=read.table(file(output_data_file), header=T, check.names =F)
 scale_factor = 10000
@@ -183,20 +172,6 @@ boxplot(FPKM ~ bymedian, data=rle, outline=F, las=2, boxwex=1, col='gray', cex.a
 sampleDists = 1 - cor(fpkm, method='spearman')
 hc=hclust(as.dist(sampleDists),method = "complete")
 
-# To recolor according to covariates, we need to load in the combined Seurat object
-# if it hasn't already been created here
-# sample_covars <- subset(combined@meta.data, !duplicated(orig.ident),
-#                         select=c("orig.ident", "batch", "sex", "expired_age", "diagnosis"))
-# rownames(sample_covars) <- sample_covars$orig.ident
-
-
-# celltype=gsub("(.*)_.*_(.*)_.*_.*","\\1_\\2",hc$labels)
-# batch=gsub(".*_.*_.*_(\\d+)_.*","\\1",hc$labels)
-# subject=gsub(".*_(.*)_.*_.*_.*","\\1",hc$labels)
-# diagnosis <- sample_covars[hc$labels, "diagnosis"]
-# batch <- sample_covars[hc$labels, "batch"]
-# sex <- sample_covars[hc$labels, "sex"]
-# subject <- hc$labels
 rownames(st_input_files) <- st_input_files$sample_name
 diagnosis <- st_input_files[hc$labels, "diagnosis"]
 batch <- st_input_files[hc$labels, "batch"]
@@ -205,12 +180,8 @@ subject <- hc$labels
 
 
 tree=as.phylo(hc)
-## Update: fix edge.color bug. See https://stackoverflow.com/a/22102420/951718
 myLabels <- c('node', sort(unique(batch)))
-#myColors <- c("black", gray.colors(length(unique(batch)),start=0))
 myColors <- c("black", rainbow(length(unique(batch))))
-## match colors and labels (nomatch == node => select idx 1)
-## (myLabels are reordered by edge ordering
 batchColors <- myColors[match(batch[tree$edge[,2]], myLabels, nomatch=1)]
 
 myColorsDiag <- rainbow(length(unique(diagnosis)))
@@ -222,16 +193,6 @@ plot(tree, type = "unrooted",
      tip.color=diagColors,
      edge.color= batchColors,
      main="Clustering of samples based on Spearman correlation")
-
-# plot(tree, type = "unrooted",
-#      cex=.3, lab4ut='axial',underscore = T,
-#      tip.color=celltype.colors,
-#      edge.color= batchColors,
-#      main="Clustering of samples based on Spearman correlation")
-# legend("bottomleft",
-#        c("-- cell type --",unique(celltype),"-- batch --",paste("batch",sort(unique(batch)))),
-#        text.col=c('black',paste0("#",cols$HEX[match(unique(celltype), cols$ITEM)]), myColors),
-#        bty='n', cex=.5)
 
 par(op)
 D=apply(1-sampleDists, 1, median)
